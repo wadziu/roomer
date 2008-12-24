@@ -57,14 +57,14 @@ class ReservationsController < ApplicationController
 
     # hours and minutes offset counted from last reservations in this day
     reservation_offset = Reservation.find(:first, 
-                                    :select => "room_id, MAX(end_at) AS end_at",
+                              :select => "room_id, MAX(end_at) AS end_at",
                               :conditions => ["(date_trunc('day', begining_at) = " +
                                 "date_trunc('day', CAST(? AS timestamp))) AND" +
                                 "(begining_at > ? OR end_at > ?)", 
                                 date.to_s(:db), Time.zone.now, Time.zone.now],
-                                :order => "MAX(end_at) ASC",
+                              :order => "MAX(end_at) ASC",
                               :group => "room_id")
-    
+
 =begin
     # FIXME make this part more complex and optimal
     for i in 0..(reservations.length-1)
@@ -85,7 +85,10 @@ class ReservationsController < ApplicationController
       @reservation.date = reservation_offset.end_at.strftime("%H:%M, 15min, %d-%m-%Y")
       @reservation.room_id = reservation_offset.room_id
     rescue
-      @reservation.date ||= (Date.today + params[:day].to_i.days).strftime("%H:%M, 15min, %d-%m-%Y");
+      # TODO move 8.hours internal to settings
+      @reservation.date ||= (Date.today + 
+                             params[:day].to_i.days + 
+                             8.hours).strftime("%H:%M, 15min, %d-%m-%Y")
     end
 
     respond_to do |format|
