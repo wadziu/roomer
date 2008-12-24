@@ -1,0 +1,17 @@
+<% i = 0; current_date = Time.new + i.days %>
+<div class="column span-3 colborder <%= Date::DAYNAMES[ current_date.wday ].to_s.downcase %>">
+  <p class="dayname">
+    <%= Date::DAYNAMES[current_date.wday] + " (#{current_date.day}.#{current_date.month})" %>
+  </p>
+  <% unless @reservations.empty? %>
+    <%= render :partial => 'reservations/reservation', 
+      :spacer_template => 'reservations/spacer',
+      :collection => @reservations, 
+      :locals => { :current_date => current_date}, 
+      :layout => false 
+    %>
+  <% else %>
+    Non reserverd.
+  <% end %>
+</div>
+<hr />

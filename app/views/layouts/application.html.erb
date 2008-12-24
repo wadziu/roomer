@@ -1,0 +1,38 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+       "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html;charset=UTF-8" />
+  <title>The Butler #Roomer</title>
+  <%= stylesheet_link_tag 'user.css', :media => 'screen, projection' %>
+  <%= stylesheet_link_tag 'blueprint/screen.css', :media => 'screen, projection' %>
+  <%= stylesheet_link_tag 'blueprint/print.css', :media => 'print' %>
+  <!--[if IE]>
+  <%= stylesheet_link_tag 'blueprint/ie.css', :media => 'screen, projection' %>
+  <![endif]-->
+  <%= javascript_include_tag :defaults %>
+</head>
+<body>
+  <div class="container">
+    <div class="column span-24 last">
+      <h1>The Butler #Roomer</h1>
+    </div>
+  
+    <p>
+      <%= link_to 'Reservations', '/', :class => 'small-link' %> | 
+      <%= link_to 'Rooms', rooms_path, :class => 'small-link' %>
+      <% if logged_in? %>
+        | <%= link_to 'Log out', logout_path, :class => 'small-link' %>
+      <% else %>
+        | <%= link_to 'Sign up', signup_path, :class => 'small-link' %> |
+        <%= link_to 'Log in', login_path, :class => 'small-link' %>
+      <% end %>
+    </p>
+
+    <div class="column span-24">
+      <%= yield  %>
+    </div>
+  </div>
+</body>
+</html>

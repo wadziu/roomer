@@ -1,0 +1,51 @@
+<h3 class="date">
+  <%= "#{Date::DAYNAMES[current_date.wday]}<br />(#{current_date.day}.#{current_date.month})" %>
+  <%= link_to_remote '+', 
+      :url => { 
+        :controller => 'reservations', 
+        :action => 'new',
+        :day => (current_date - Time.zone.parse(Date.today.to_s)).to_i/(24*3600)
+      },
+      :method => 'get', 
+      :html => { :class => 'new-reservation' } 
+  %>
+</h3>
+
+<% unless reservations.nil? %>
+  <% for day in reservations %> 
+      <span class="room-name">
+        <%=h Room.find_by_id(day.first.to_i).name %>
+      </span>
+      <ul class="reservations">
+        <% for reservation in day.last %>
+          <li <%= 'class="highlight"' if logged_in? and reservation.user_id == current_user.id %>>
+          
+          <%= link_to_remote \
+            "<i>#{reservation.begining_at.strftime("%H:%M")}</i> 
+            - 
+            <i>#{reservation.end_at.strftime("%H:%M")}</i>",
+            :url => {
+              :controller => 'reservations',
+              :action => 'show',
+              :id => reservation.id
+            },
+            :method => :get,
+            :html => { :class => 'detail-reservation' }
+          %>
+          
+          <%= link_to_remote ('-', 
+            :url => {
+              :controller => 'reservations',
+              :action => 'destroy',
+              :id => reservation.id
+            },
+            :method => :delete,
+            :confirm => 'Are you sure?', 
+            :html => { :class => "remove-reservation" }) if is_owner?(reservation)
+          %>
+          </li>
+      <% end %>
+      </ul>
+      </hr>
+    <% end %>
+<% end %> 

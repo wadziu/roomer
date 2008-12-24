@@ -1,0 +1,32 @@
+<h2>Editing reservation</h2>
+
+<% form_for(@reservation) do |f| %>
+  <%= f.error_messages %>
+
+  <p>
+    <%= f.label :room_id %><br />
+    <%= f.text_field :room_id %>
+  </p>
+  <p>
+    <%= f.label :user_id %><br />
+    <%= f.text_field :user_id %>
+  </p>
+  <p>
+    <%= f.label :comment %><br />
+    <%= f.text_area :comment %>
+  </p>
+  <p>
+    <%= f.label :begining_at %><br />
+    <%= f.datetime_select :begining_at %>
+  </p>
+  <p>
+    <%= f.label :end_at %><br />
+    <%= f.datetime_select :end_at %>
+  </p>
+  <p>
+    <%= f.submit "Update" %>
+  </p>
+<% end %>
+
+<%= link_to 'Show', @reservation %> |
+<%= link_to 'Back', reservations_path %>

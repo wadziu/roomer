@@ -1,0 +1,19 @@
+<strong>Reserver:</strong> <i><%=h reservation.user.login %></i><br />
+<strong>Date:</strong> <i><%=h reservation.begining_at.strftime("%d-%m-%Y") %></i><br />
+<strong>From:</strong> <i><%=h reservation.begining_at.strftime("%H:%M") %></i><br />
+<strong>To:</strong> <i><%=h reservation.end_at.strftime("%H:%M") %></i><br />
+<strong>Time:</strong> <i><%=h (reservation.end_at - reservation.begining_at).to_i/60 %></i> minutes
+<br />
+<% unless reservation.comment.empty? %>
+  <strong>Comment:</strong><br />
+  <i><%=h reservation.comment %></i><br />
+<% end %>
+<br />
+<%= link_to_remote "New reservation",
+      :url => {
+        :controller => "reservations",
+        :action => "new"
+      },
+      :method => :get,
+      :html => { :class => "new-reservation" }
+%>

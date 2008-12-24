@@ -1,0 +1,28 @@
+<p>
+  <b>Room:</b>
+  <%=h @reservation.room_id %>
+</p>
+
+<p>
+  <b>User:</b>
+  <%=h @reservation.user_id %>
+</p>
+
+<p>
+  <b>Comment:</b>
+  <%=h @reservation.comment %>
+</p>
+
+<p>
+  <b>Begining at:</b>
+  <%=h @reservation.begining_at %>
+</p>
+
+<p>
+  <b>End at:</b>
+  <%=h @reservation.end_at %>
+</p>
+
+
+<%= link_to 'Edit', edit_reservation_path(@reservation) %> |
+<%= link_to 'Back', reservations_path %>

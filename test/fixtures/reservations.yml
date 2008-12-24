@@ -1,0 +1,15 @@
+# Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
+
+one:
+  room_id: 
+  user_id: 
+  comment: MyText
+  begining_at: 2008-11-27 14:09:28
+  end_at: 2008-11-27 14:09:28
+
+two:
+  room_id: 
+  user_id: 
+  comment: MyText
+  begining_at: 2008-11-27 14:09:28
+  end_at: 2008-11-27 14:09:28

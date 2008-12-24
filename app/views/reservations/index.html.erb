@@ -1,0 +1,33 @@
+<h2>Reservations</h2>
+
+<% for i in (0..13) %>
+  <% current_date = Time.zone.parse(Date.today.to_s) + i.days %>
+  <div id="<%= "#{Date::DAYNAMES[current_date.wday].downcase}_#{current_date.day}" %>" 
+    class="<%= Date::DAYNAMES[current_date.wday].downcase %> column span-3">
+ 
+    <%= render :partial => 'day', 
+      :locals => { 
+        :current_date => current_date, 
+        :reservations => @reservations[current_date.to_s(:db).slice(0..9)],
+        :pointer => i 
+      } 
+    %>
+
+  </div>
+
+  <% if (i+1)%7 == 0 and i < 7 %>
+    <div id="new_reservation_box" class="column span-3 last">
+      <% if logged_in? %>
+        <%= render :partial => 'reservations/form', :locals => { :reservation => Reservation.new } %>
+      <% else %>
+        You have to log in, if you want make reservations.
+      <% end %>
+    </div>
+    <hr />
+  <% elsif (i+1)%7 == 0 %>
+    <div class="column span-3 last">
+      <br />
+    </div>
+  <% end %>
+
+<% end %>

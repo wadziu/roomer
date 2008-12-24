@@ -1,0 +1,26 @@
+<h2>Rooms</h2>
+
+<table class="index-table">
+  <tr>
+    <th>Name</th>
+    <th>Number</th>
+    <th>Description</th>
+    <th>Actions</th>
+  </tr>
+
+<% for room in @rooms %>
+  <tr>
+    <td><%=h room.name %></td>
+    <td><%=h room.number %></td>
+    <td><%=h room.description %><%= "<i>none</i>" if room.description.empty? %></td>
+    <td>
+      <%= link_to 'Edit', edit_room_path(room) %> | 
+      <%= link_to 'Destroy', room, :confirm => 'Are you sure?', :method => :delete %>
+    </td>
+  </tr>
+<% end %>
+</table>
+
+<br />
+
+<%= link_to 'New room', new_room_path %>
