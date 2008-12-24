@@ -31,27 +31,23 @@ rescue LoadError
   end
 end
 
-module ActionView
-  def self.load_all!
-    [Base, InlineTemplate, TemplateError]
-  end
+require 'action_view/template_handlers'
+require 'action_view/renderable'
+require 'action_view/renderable_partial'
 
-  autoload :Base, 'action_view/base'
-  autoload :Helpers, 'action_view/helpers'
-  autoload :InlineTemplate, 'action_view/inline_template'
-  autoload :Partials, 'action_view/partials'
-  autoload :PathSet, 'action_view/paths'
-  autoload :Renderable, 'action_view/renderable'
-  autoload :RenderablePartial, 'action_view/renderable_partial'
-  autoload :Template, 'action_view/template'
-  autoload :TemplateError, 'action_view/template_error'
-  autoload :TemplateHandler, 'action_view/template_handler'
-  autoload :TemplateHandlers, 'action_view/template_handlers'
-  autoload :Helpers, 'action_view/helpers'
-end
+require 'action_view/template'
+require 'action_view/inline_template'
+require 'action_view/paths'
 
-class ERB
-  autoload :Util, 'action_view/erb/util'
-end
+require 'action_view/base'
+require 'action_view/partials'
+require 'action_view/template_error'
 
 I18n.load_path << "#{File.dirname(__FILE__)}/action_view/locale/en.yml"
+
+require 'action_view/helpers'
+
+ActionView::Base.class_eval do
+  include ActionView::Partials
+  include ActionView::Helpers
+end

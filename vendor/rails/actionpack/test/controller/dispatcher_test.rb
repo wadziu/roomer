@@ -2,10 +2,13 @@ require 'abstract_unit'
 
 uses_mocha 'dispatcher tests' do
 
+require 'action_controller/dispatcher'
+
 class DispatcherTest < Test::Unit::TestCase
   Dispatcher = ActionController::Dispatcher
 
   def setup
+    @output = StringIO.new
     ENV['REQUEST_METHOD'] = 'GET'
 
     # Clear callbacks as they are redefined by Dispatcher#define_dispatcher_callbacks
@@ -15,7 +18,7 @@ class DispatcherTest < Test::Unit::TestCase
 
     Dispatcher.stubs(:require_dependency)
 
-    @dispatcher = Dispatcher.new
+    @dispatcher = Dispatcher.new(@output)
   end
 
   def teardown
@@ -24,17 +27,17 @@ class DispatcherTest < Test::Unit::TestCase
 
   def test_clears_dependencies_after_dispatch_if_in_loading_mode
     ActiveSupport::Dependencies.expects(:clear).once
-    dispatch(false)
+    dispatch(@output, false)
   end
 
   def test_reloads_routes_before_dispatch_if_in_loading_mode
     ActionController::Routing::Routes.expects(:reload).once
-    dispatch(false)
+    dispatch(@output, false)
   end
 
   def test_clears_asset_tag_cache_before_dispatch_if_in_loading_mode
     ActionView::Helpers::AssetTagHelper::AssetTag::Cache.expects(:clear).once
-    dispatch(false)
+    dispatch(@output, false)
   end
 
   def test_leaves_dependencies_after_dispatch_if_not_in_loading_mode
@@ -50,16 +53,12 @@ class DispatcherTest < Test::Unit::TestCase
   end
 
   def test_failsafe_response
-    Dispatcher.any_instance.expects(:dispatch).raises('b00m')
-    ActionController::Failsafe.any_instance.expects(:log_failsafe_exception)
+    CGI.expects(:new).raises('some multipart parsing failure')
+    Dispatcher.expects(:log_failsafe_exception)
 
-    assert_nothing_raised do
-      assert_equal [
-        500,
-        {"Content-Type" => "text/html"},
-        "<html><body><h1>500 Internal Server Error</h1></body></html>"
-      ], dispatch
-    end
+    assert_nothing_raised { dispatch }
+
+    assert_equal "Status: 400 Bad Request\r\nContent-Type: text/html\r\n\r\n<html><body><h1>400 Bad Request</h1></body></html>", @output.string
   end
 
   def test_prepare_callbacks
@@ -80,7 +79,7 @@ class DispatcherTest < Test::Unit::TestCase
 
     # Make sure they are only run once
     a = b = c = nil
-    dispatch
+    @dispatcher.send :dispatch
     assert_nil a || b || c
   end
 
@@ -95,12 +94,15 @@ class DispatcherTest < Test::Unit::TestCase
   end
 
   private
-    def dispatch(cache_classes = true)
-      controller = mock()
-      controller.stubs(:process).returns([200, {}, 'response'])
+    def dispatch(output = @output, cache_classes = true)
+      controller = mock
+      controller.stubs(:process).returns(controller)
+      controller.stubs(:out).with(output).returns('response')
+
       ActionController::Routing::Routes.stubs(:recognize).returns(controller)
+
       Dispatcher.define_dispatcher_callbacks(cache_classes)
-      @dispatcher.call({})
+      Dispatcher.dispatch(nil, {}, output)
     end
 
     def assert_subclasses(howmany, klass, message = klass.subclasses.inspect)

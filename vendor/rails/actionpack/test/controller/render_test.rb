@@ -209,10 +209,6 @@ class TestController < ActionController::Base
     # let's just rely on the template
   end
 
-  def blank_response
-    render :text => ' '
-  end
-
   def layout_test
     render :action => "hello_world"
   end
@@ -250,10 +246,13 @@ class TestController < ActionController::Base
            :locals => { :local_name => name }
   end
 
-  def render_implicit_html_template
+  def helper_method_to_render_to_string(*args)
+    render_to_string(*args)
   end
+  helper_method :helper_method_to_render_to_string
 
-  def render_explicit_html_template
+  def render_html_only_partial_within_inline
+    render :inline => "Hello world <%= helper_method_to_render_to_string :partial => 'test/partial_with_only_html_version' %>"
   end
 
   def formatted_html_erb
@@ -656,10 +655,12 @@ class TestController < ActionController::Base
     end
 end
 
-class RenderTest < ActionController::TestCase
-  tests TestController
-
+class RenderTest < Test::Unit::TestCase
   def setup
+    @request    = ActionController::TestRequest.new
+    @response   = ActionController::TestResponse.new
+    @controller = TestController.new
+
     # enable a logger so that (e.g.) the benchmarking stuff runs, so we can get
     # a more accurate simulation of what happens in "real life".
     @controller.logger = Logger.new(nil)
@@ -868,7 +869,10 @@ class RenderTest < ActionController::TestCase
   end
 
   def test_render_xml
-    get :render_xml_hello
+    assert_deprecated do
+      get :render_xml_hello
+    end
+
     assert_equal "<html>\n  <p>Hello David</p>\n<p>This is grand!</p>\n</html>\n", @response.body
     assert_equal "application/xml", @response.content_type
   end
@@ -884,13 +888,12 @@ class RenderTest < ActionController::TestCase
   end
 
   def test_enum_rjs_test
-    ActiveSupport::SecureRandom.stubs(:base64).returns("asdf")
     get :enum_rjs_test
     body = %{
       $$(".product").each(function(value, index) {
       new Effect.Highlight(element,{});
       new Effect.Highlight(value,{});
-      Sortable.create(value, {onUpdate:function(){new Ajax.Request('/test/order', {asynchronous:true, evalScripts:true, parameters:Sortable.serialize(value) + '&authenticity_token=' + encodeURIComponent('asdf')})}});
+      Sortable.create(value, {onUpdate:function(){new Ajax.Request('/test/order', {asynchronous:true, evalScripts:true, parameters:Sortable.serialize(value)})}});
       new Draggable(value, {});
       });
     }.gsub(/^      /, '').strip
@@ -903,7 +906,10 @@ class RenderTest < ActionController::TestCase
   end
 
   def test_render_xml_with_layouts
-    get :builder_layout_test
+    assert_deprecated do
+      get :builder_layout_test
+    end
+
     assert_equal "<wrapper>\n<html>\n  <p>Hello </p>\n<p>This is grand!</p>\n</html>\n</wrapper>\n", @response.body
   end
 
@@ -943,22 +949,9 @@ class RenderTest < ActionController::TestCase
     assert_equal "Goodbye, Local David", @response.body
   end
 
-  def test_render_in_an_rjs_template_should_pick_html_templates_when_available
-    [:js, "js"].each do |format|
-      assert_nothing_raised do
-        get :render_implicit_html_template, :format => format
-        assert_equal %(document.write("Hello world\\n");), @response.body
-      end
-    end
-  end
-
-  def test_explicitly_rendering_an_html_template_with_implicit_html_template_renders_should_be_possible_from_an_rjs_template
-    [:js, "js"].each do |format|
-      assert_nothing_raised do
-        get :render_explicit_html_template, :format => format
-        assert_equal %(document.write("Hello world\\n");), @response.body
-      end
-    end
+  def test_rendering_html_only_partial_within_inline_with_js
+    get :render_html_only_partial_within_inline, :format => :js
+    assert_equal "Hello world partial with only html version", @response.body
   end
 
   def test_should_render_formatted_template
@@ -1099,14 +1092,14 @@ class RenderTest < ActionController::TestCase
   def test_update_page
     get :update_page
     assert_template nil
-    assert_equal 'text/javascript; charset=utf-8', @response.headers['Content-Type']
+    assert_equal 'text/javascript; charset=utf-8', @response.headers['type']
     assert_equal 2, @response.body.split($/).length
   end
 
   def test_update_page_with_instance_variables
     get :update_page_with_instance_variables
     assert_template nil
-    assert_equal 'text/javascript; charset=utf-8', @response.headers["Content-Type"]
+    assert_equal 'text/javascript; charset=utf-8', @response.headers['type']
     assert_match /balance/, @response.body
     assert_match /\$37/, @response.body
   end
@@ -1114,7 +1107,7 @@ class RenderTest < ActionController::TestCase
   def test_update_page_with_view_method
     get :update_page_with_view_method
     assert_template nil
-    assert_equal 'text/javascript; charset=utf-8', @response.headers["Content-Type"]
+    assert_equal 'text/javascript; charset=utf-8', @response.headers['type']
     assert_match /2 people/, @response.body
   end
 
@@ -1147,11 +1140,11 @@ class RenderTest < ActionController::TestCase
 
   def test_head_with_symbolic_status
     get :head_with_symbolic_status, :status => "ok"
-    assert_equal "200 OK", @response.status
+    assert_equal "200 OK", @response.headers["Status"]
     assert_response :ok
 
     get :head_with_symbolic_status, :status => "not_found"
-    assert_equal "404 Not Found", @response.status
+    assert_equal "404 Not Found", @response.headers["Status"]
     assert_response :not_found
 
     ActionController::StatusCodes::SYMBOL_TO_STATUS_CODE.each do |status, code|
@@ -1314,28 +1307,21 @@ class RenderTest < ActionController::TestCase
   def test_partial_collection_with_spacer
     get :partial_collection_with_spacer
     assert_equal "Hello: davidonly partialHello: mary", @response.body
-    assert_template :partial => 'test/_partial_only'
-    assert_template :partial => '_customer'
   end
 
   def test_partial_collection_shorthand_with_locals
     get :partial_collection_shorthand_with_locals
     assert_equal "Bonjour: davidBonjour: mary", @response.body
-    assert_template :partial => 'customers/_customer', :count => 2
-    assert_template :partial => '_completely_fake_and_made_up_template_that_cannot_possibly_be_rendered', :count => 0
   end
 
   def test_partial_collection_shorthand_with_different_types_of_records
     get :partial_collection_shorthand_with_different_types_of_records
     assert_equal "Bonjour bad customer: mark0Bonjour good customer: craig1Bonjour bad customer: john2Bonjour good customer: zach3Bonjour good customer: brandon4Bonjour bad customer: dan5", @response.body
-    assert_template :partial => 'good_customers/_good_customer', :count => 3
-    assert_template :partial => 'bad_customers/_bad_customer', :count => 3
   end
 
   def test_empty_partial_collection
     get :empty_partial_collection
     assert_equal " ", @response.body
-    assert_template :partial => false
   end
 
   def test_partial_with_hash_object
@@ -1377,17 +1363,14 @@ class RenderTest < ActionController::TestCase
   end
 end
 
-class EtagRenderTest < ActionController::TestCase
-  tests TestController
-
+class EtagRenderTest < Test::Unit::TestCase
   def setup
+    @request    = ActionController::TestRequest.new
+    @response   = ActionController::TestResponse.new
+    @controller = TestController.new
+
     @request.host = "www.nextangle.com"
     @expected_bang_etag = etag_for(expand_key([:foo, 123]))
-  end
-
-  def test_render_blank_body_shouldnt_set_etag
-    get :blank_response
-    assert !@response.etag?
   end
 
   def test_render_200_should_set_etag
@@ -1450,7 +1433,10 @@ class EtagRenderTest < ActionController::TestCase
   end
 
   def test_etag_should_govern_renders_with_layouts_too
-    get :builder_layout_test
+    assert_deprecated do
+      get :builder_layout_test
+    end
+
     assert_equal "<wrapper>\n<html>\n  <p>Hello </p>\n<p>This is grand!</p>\n</html>\n</wrapper>\n", @response.body
     assert_equal etag_for("<wrapper>\n<html>\n  <p>Hello </p>\n<p>This is grand!</p>\n</html>\n</wrapper>\n"), @response.headers['ETag']
   end
@@ -1477,10 +1463,12 @@ class EtagRenderTest < ActionController::TestCase
     end
 end
 
-class LastModifiedRenderTest < ActionController::TestCase
-  tests TestController
-
+class LastModifiedRenderTest < Test::Unit::TestCase
   def setup
+    @request    = ActionController::TestRequest.new
+    @response   = ActionController::TestResponse.new
+    @controller = TestController.new
+
     @request.host = "www.nextangle.com"
     @last_modified = Time.now.utc.beginning_of_day.httpdate
   end
@@ -1532,10 +1520,12 @@ class LastModifiedRenderTest < ActionController::TestCase
   end
 end
 
-class RenderingLoggingTest < ActionController::TestCase
-  tests TestController
-
+class RenderingLoggingTest < Test::Unit::TestCase
   def setup
+    @request    = ActionController::TestRequest.new
+    @response   = ActionController::TestResponse.new
+    @controller = TestController.new
+
     @request.host = "www.nextangle.com"
   end
 

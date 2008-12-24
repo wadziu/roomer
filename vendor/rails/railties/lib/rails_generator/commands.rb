@@ -40,7 +40,6 @@ module Rails
         # Replay action manifest.  RewindBase subclass rewinds manifest.
         def invoke!
           manifest.replay(self)
-          after_generate
         end
 
         def dependency(generator_name, args, runtime_options = {})

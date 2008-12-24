@@ -185,7 +185,7 @@ module ActiveRecord
 
         associated_records = reflection.klass.find(:all, :conditions => [conditions, ids],
         :include => options[:include],
-        :joins => "INNER JOIN #{connection.quote_table_name options[:join_table]} t0 ON #{reflection.klass.quoted_table_name}.#{reflection.klass.primary_key} = t0.#{reflection.association_foreign_key}",
+        :joins => "INNER JOIN #{connection.quote_table_name options[:join_table]} as t0 ON #{reflection.klass.quoted_table_name}.#{reflection.klass.primary_key} = t0.#{reflection.association_foreign_key}",
         :select => "#{options[:select] || table_name+'.*'}, t0.#{reflection.primary_key_name} as the_parent_record_id",
         :order => options[:order])
 
@@ -204,18 +204,9 @@ module ActiveRecord
           unless through_records.empty?
             source = reflection.source_reflection.name
             through_records.first.class.preload_associations(through_records, source)
-            if through_reflection.macro == :belongs_to
-              rev_id_to_record_map, rev_ids = construct_id_map(records, through_primary_key)
-              rev_primary_key = through_reflection.klass.primary_key
-              through_records.each do |through_record|
-                add_preloaded_record_to_collection(rev_id_to_record_map[through_record[rev_primary_key].to_s],
-                                                   reflection.name, through_record.send(source))
-              end
-            else
-              through_records.each do |through_record|
-                add_preloaded_record_to_collection(id_to_record_map[through_record[through_primary_key].to_s],
-                                                   reflection.name, through_record.send(source))
-              end
+            through_records.each do |through_record|
+              add_preloaded_record_to_collection(id_to_record_map[through_record[through_primary_key].to_s],
+                                                 reflection.name, through_record.send(source))
             end
           end
         else
@@ -316,7 +307,6 @@ module ActiveRecord
 
         klasses_and_ids.each do |klass_and_id|
           klass_name, id_map = *klass_and_id
-          next if id_map.empty?
           klass = klass_name.constantize
 
           table_name = klass.quoted_table_name

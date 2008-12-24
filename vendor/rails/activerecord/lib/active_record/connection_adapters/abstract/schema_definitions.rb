@@ -32,12 +32,10 @@ module ActiveRecord
         @primary = nil
       end
 
-      # Returns +true+ if the column is either of type string or text.
       def text?
         type == :string || type == :text
       end
 
-      # Returns +true+ if the column is either of type integer, float or decimal.
       def number?
         type == :integer || type == :float || type == :decimal
       end
@@ -297,7 +295,7 @@ module ActiveRecord
     #         puts t.class  # => "ActiveRecord::ConnectionAdapters::TableDefinition"
     #       end
     #     end
-    #
+    #     
     #     def self.down
     #       ...
     #     end

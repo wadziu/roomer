@@ -1,3 +1,4 @@
+require 'action_controller/assertions'
 require 'action_controller/test_case'
 
 module ActionController #:nodoc:
@@ -27,20 +28,20 @@ module ActionController #:nodoc:
     alias_method_chain :process, :test
   end
 
-  class TestRequest < Request #:nodoc:
+  class TestRequest < AbstractRequest #:nodoc:
     attr_accessor :cookies, :session_options
     attr_accessor :query_parameters, :request_parameters, :path, :session
     attr_accessor :host, :user_agent
 
-    def initialize
-      super(Rack::MockRequest.env_for('/'))
-
-      @query_parameters   = {}
-      @request_parameters = {}
-      @session            = TestSession.new
+    def initialize(query_parameters = nil, request_parameters = nil, session = nil)
+      @query_parameters   = query_parameters || {}
+      @request_parameters = request_parameters || {}
+      @session            = session || TestSession.new
 
       initialize_containers
       initialize_default_values
+
+      super()
     end
 
     def reset_session
@@ -166,7 +167,7 @@ module ActionController #:nodoc:
   module TestResponseBehavior #:nodoc:
     # The response code of the request
     def response_code
-      status.to_s[0,3].to_i rescue 0
+      status[0,3].to_i rescue 0
     end
 
     # Returns a String to ensure compatibility with Net::HTTPResponse
@@ -200,11 +201,6 @@ module ActionController #:nodoc:
 
     alias_method :server_error?, :error?
 
-    # Was there a client client?
-    def client_error?
-      (400..499).include?(response_code)
-    end
-
     # Returns the redirection location or nil
     def redirect_url
       headers['Location']
@@ -221,8 +217,8 @@ module ActionController #:nodoc:
 
     # Returns the template of the file which was used to
     # render this response (or nil)
-    def rendered
-      template.instance_variable_get(:@_rendered)
+    def rendered_template
+      template.instance_variable_get(:@_first_render)
     end
 
     # A shortcut to the flash. Returns an empty hash if no session flash exists.
@@ -232,7 +228,7 @@ module ActionController #:nodoc:
 
     # Do we have a flash?
     def has_flash?
-      !flash.empty?
+      !session['flash'].empty?
     end
 
     # Do we have a flash that has contents?
@@ -260,16 +256,11 @@ module ActionController #:nodoc:
       !template_objects[name].nil?
     end
 
-    # Returns the response cookies, converted to a Hash of (name => value) pairs
+    # Returns the response cookies, converted to a Hash of (name => CGI::Cookie) pairs
     #
-    #   assert_equal 'AuthorOfNewPage', r.cookies['author']
+    #   assert_equal ['AuthorOfNewPage'], r.cookies['author'].value
     def cookies
-      cookies = {}
-      Array(headers['Set-Cookie']).each do |cookie|
-        key, value = cookie.split(";").first.split("=")
-        cookies[key] = value
-      end
-      cookies
+      headers['cookie'].inject({}) { |hash, cookie| hash[cookie.name] = cookie; hash }
     end
 
     # Returns binary content (downloadable file), converted to a String
@@ -290,10 +281,10 @@ module ActionController #:nodoc:
   # TestResponse, which represent the HTTP response results of the requested
   # controller actions.
   #
-  # See Response for more information on controller response objects.
-  class TestResponse < Response
+  # See AbstractResponse for more information on controller response objects.
+  class TestResponse < AbstractResponse
     include TestResponseBehavior
-
+    
     def recycle!
       headers.delete('ETag')
       headers.delete('Last-Modified')
@@ -342,10 +333,10 @@ module ActionController #:nodoc:
   # a file upload.
   #
   # Usage example, within a functional test:
-  #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(ActionController::TestCase.fixture_path + '/files/spongebob.png', 'image/png')
+  #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + '/files/spongebob.png', 'image/png')
   #
   # Pass a true third parameter to ensure the uploaded file is opened in binary mode (only required for Windows):
-  #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(ActionController::TestCase.fixture_path + '/files/spongebob.png', 'image/png', :binary)
+  #   post :change_avatar, :avatar => ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + '/files/spongebob.png', 'image/png', :binary)
   require 'tempfile'
   class TestUploadedFile
     # The filename, *not* including the path, of the "uploaded" file
@@ -418,7 +409,7 @@ module ActionController #:nodoc:
 
     def xml_http_request(request_method, action, parameters = nil, session = nil, flash = nil)
       @request.env['HTTP_X_REQUESTED_WITH'] = 'XMLHttpRequest'
-      @request.env['HTTP_ACCEPT'] =  [Mime::JS, Mime::HTML, Mime::XML, 'text/xml', Mime::ALL].join(', ')
+      @request.env['HTTP_ACCEPT'] = 'text/javascript, text/html, application/xml, text/xml, */*'
       returning __send__(request_method, action, parameters, session, flash) do
         @request.env.delete 'HTTP_X_REQUESTED_WITH'
         @request.env.delete 'HTTP_ACCEPT'
@@ -435,7 +426,7 @@ module ActionController #:nodoc:
     end
 
     def session
-      @request.session
+      @response.session
     end
 
     def flash
@@ -473,15 +464,15 @@ module ActionController #:nodoc:
       html_document.find_all(conditions)
     end
 
-    def method_missing(selector, *args, &block)
-      if @controller && ActionController::Routing::Routes.named_routes.helpers.include?(selector)
-        @controller.send(selector, *args, &block)
+    def method_missing(selector, *args)
+      if ActionController::Routing::Routes.named_routes.helpers.include?(selector)
+        @controller.send(selector, *args)
       else
         super
       end
     end
 
-    # Shortcut for <tt>ActionController::TestUploadedFile.new(ActionController::TestCase.fixture_path + path, type)</tt>:
+    # Shortcut for <tt>ActionController::TestUploadedFile.new(Test::Unit::TestCase.fixture_path + path, type)</tt>:
     #
     #   post :change_avatar, :avatar => fixture_file_upload('/files/spongebob.png', 'image/png')
     #
@@ -490,7 +481,11 @@ module ActionController #:nodoc:
     #
     #   post :change_avatar, :avatar => fixture_file_upload('/files/spongebob.png', 'image/png', :binary)
     def fixture_file_upload(path, mime_type = nil, binary = false)
-      ActionController::TestUploadedFile.new("#{ActionController::TestCase.try(:fixture_path)}#{path}", mime_type, binary)
+      ActionController::TestUploadedFile.new(
+        Test::Unit::TestCase.respond_to?(:fixture_path) ? Test::Unit::TestCase.fixture_path + path : path,
+        mime_type,
+        binary
+      )
     end
 
     # A helper to make it easier to test different route configurations.

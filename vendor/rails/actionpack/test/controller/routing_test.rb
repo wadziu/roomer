@@ -1,5 +1,6 @@
 require 'abstract_unit'
 require 'controller/fake_controllers'
+require 'action_controller/routing'
 
 class MilestonesController < ActionController::Base
   def index() head :ok end
@@ -747,16 +748,12 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
       ActionController::Base.optimise_named_routes = true
 
       @rs = ::ActionController::Routing::RouteSet.new
+      @rs.draw {|m| m.connect ':controller/:action/:id' }
 
       ActionController::Routing.use_controllers! %w(content admin/user admin/news_feed)
     end
-    
-    def teardown
-      @rs.clear!
-    end
 
     def test_default_setup
-      @rs.draw {|m| m.connect ':controller/:action/:id' }
       assert_equal({:controller => "content", :action => 'index'}, rs.recognize_path("/content"))
       assert_equal({:controller => "content", :action => 'list'}, rs.recognize_path("/content/list"))
       assert_equal({:controller => "content", :action => 'show', :id => '10'}, rs.recognize_path("/content/show/10"))
@@ -773,7 +770,6 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
     end
 
     def test_ignores_leading_slash
-      @rs.clear!
       @rs.draw {|m| m.connect '/:controller/:action/:id'}
       test_default_setup
     end
@@ -1007,8 +1003,6 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
     end
 
     def test_changing_controller
-      @rs.draw {|m| m.connect ':controller/:action/:id' }
-
       assert_equal '/admin/stuff/show/10', rs.generate(
         {:controller => 'stuff', :action => 'show', :id => 10},
         {:controller => 'admin/user', :action => 'index'}
@@ -1162,12 +1156,10 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
     end
 
     def test_action_expiry
-      @rs.draw {|m| m.connect ':controller/:action/:id' }
       assert_equal '/content', rs.generate({:controller => 'content'}, {:controller => 'content', :action => 'show'})
     end
 
     def test_recognition_with_uppercase_controller_name
-      @rs.draw {|m| m.connect ':controller/:action/:id' }
       assert_equal({:controller => "content", :action => 'index'}, rs.recognize_path("/Content"))
       assert_equal({:controller => "content", :action => 'list'}, rs.recognize_path("/ConTent/list"))
       assert_equal({:controller => "content", :action => 'show', :id => '10'}, rs.recognize_path("/CONTENT/show/10"))
@@ -2408,13 +2400,13 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
     def setup
       routes.instance_variable_set '@routes_last_modified', nil
       silence_warnings { Object.const_set :RAILS_ROOT, '.' }
-      routes.add_configuration_file(File.join(RAILS_ROOT, 'config', 'routes.rb'))
+      ActionController::Routing::Routes.configuration_file = File.join(RAILS_ROOT, 'config', 'routes.rb')
 
       @stat = stub_everything
     end
 
     def teardown
-      ActionController::Routing::Routes.configuration_files.clear
+      ActionController::Routing::Routes.configuration_file = nil
       Object.send :remove_const, :RAILS_ROOT
     end
 
@@ -2457,21 +2449,9 @@ uses_mocha 'LegacyRouteSet, Route, RouteSet and RouteLoading' do
     end
 
     def test_load_with_configuration
-      routes.configuration_files.clear
-      routes.add_configuration_file("foobarbaz")
+      routes.configuration_file = "foobarbaz"
       File.expects(:stat).returns(@stat)
       routes.expects(:load).with("foobarbaz")
-
-      routes.reload
-    end
-    
-    def test_load_multiple_configurations
-      routes.add_configuration_file("engines.rb")
-      
-      File.expects(:stat).at_least_once.returns(@stat)
-
-      routes.expects(:load).with('./config/routes.rb')
-      routes.expects(:load).with('engines.rb')
 
       routes.reload
     end

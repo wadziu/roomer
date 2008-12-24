@@ -22,7 +22,8 @@ end
 class Response::Nested < Response; end
 
 uses_mocha 'polymorphic URL helpers' do
-  class PolymorphicRoutesTest < ActiveSupport::TestCase
+  class PolymorphicRoutesTest < Test::Unit::TestCase
+
     include ActionController::PolymorphicRoutes
 
     def setup
@@ -71,22 +72,20 @@ uses_mocha 'polymorphic URL helpers' do
       polymorphic_url(@article, :param1 => '10')
     end
 
-    def test_formatted_url_helper_is_deprecated
-      expects(:articles_url).with(:format => :pdf)
-      assert_deprecated do
-        formatted_polymorphic_url([@article, :pdf])
-      end
+    def test_formatted_url_helper
+      expects(:formatted_article_url).with(@article, :pdf)
+      formatted_polymorphic_url([@article, :pdf])
     end
 
     def test_format_option
       @article.save
-      expects(:article_url).with(@article, :format => :pdf)
+      expects(:formatted_article_url).with(@article, :pdf)
       polymorphic_url(@article, :format => :pdf)
     end
 
     def test_format_option_with_url_options
       @article.save
-      expects(:article_url).with(@article, :format => :pdf, :param1 => '10')
+      expects(:formatted_article_url).with(@article, :pdf, :param1 => '10')
       polymorphic_url(@article, :format => :pdf, :param1 => '10')
     end
 
@@ -159,14 +158,14 @@ uses_mocha 'polymorphic URL helpers' do
     def test_nesting_with_array_containing_singleton_resource_and_format
       @tag = Tag.new
       @tag.save
-      expects(:article_response_tag_url).with(@article, @tag, :format => :pdf)
-      polymorphic_url([@article, :response, @tag], :format => :pdf)
+      expects(:formatted_article_response_tag_url).with(@article, @tag, :pdf)
+      formatted_polymorphic_url([@article, :response, @tag, :pdf])
     end
 
     def test_nesting_with_array_containing_singleton_resource_and_format_option
       @tag = Tag.new
       @tag.save
-      expects(:article_response_tag_url).with(@article, @tag, :format => :pdf)
+      expects(:formatted_article_response_tag_url).with(@article, @tag, :pdf)
       polymorphic_url([@article, :response, @tag], :format => :pdf)
     end
 

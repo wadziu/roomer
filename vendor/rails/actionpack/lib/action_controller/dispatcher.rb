@@ -2,12 +2,23 @@ module ActionController
   # Dispatches requests to the appropriate controller and takes care of
   # reloading the app after each request when Dependencies.load? is true.
   class Dispatcher
+    @@guard = Mutex.new
+
     class << self
       def define_dispatcher_callbacks(cache_classes)
         unless cache_classes
           # Development mode callbacks
           before_dispatch :reload_application
           after_dispatch :cleanup_application
+        end
+
+        # Common callbacks
+        to_prepare :load_application_controller do
+          begin
+            require_dependency 'application' unless defined?(::ApplicationController)
+          rescue LoadError => error
+            raise unless error.message =~ /application\.rb/
+          end
         end
 
         if defined?(ActiveRecord)
@@ -22,7 +33,8 @@ module ActionController
         end
       end
 
-      # DEPRECATE: Remove CGI support
+      # Backward-compatible class method takes CGI-specific args. Deprecated
+      # in favor of Dispatcher.new(output, request, response).dispatch.
       def dispatch(cgi = nil, session_options = CgiRequest::DEFAULT_SESSION_OPTIONS, output = $stdout)
         new(output).dispatch_cgi(cgi, session_options)
       end
@@ -40,51 +52,92 @@ module ActionController
         callback = ActiveSupport::Callbacks::Callback.new(:prepare_dispatch, block, :identifier => identifier)
         @prepare_dispatch_callbacks.replace_or_append!(callback)
       end
+
+      # If the block raises, send status code as a last-ditch response.
+      def failsafe_response(fallback_output, status, originating_exception = nil)
+        yield
+      rescue Exception => exception
+        begin
+          log_failsafe_exception(status, originating_exception || exception)
+          body = failsafe_response_body(status)
+          fallback_output.write "Status: #{status}\r\nContent-Type: text/html\r\n\r\n#{body}"
+          nil
+        rescue Exception => failsafe_error # Logger or IO errors
+          $stderr.puts "Error during failsafe response: #{failsafe_error}"
+          $stderr.puts "(originally #{originating_exception})" if originating_exception
+        end
+      end
+
+      private
+        def failsafe_response_body(status)
+          error_path = "#{error_file_path}/#{status.to_s[0..3]}.html"
+
+          if File.exist?(error_path)
+            File.read(error_path)
+          else
+            "<html><body><h1>#{status}</h1></body></html>"
+          end
+        end
+
+        def log_failsafe_exception(status, exception)
+          message = "/!\\ FAILSAFE /!\\  #{Time.now}\n  Status: #{status}\n"
+          message << "  #{exception}\n    #{exception.backtrace.join("\n    ")}" if exception
+          failsafe_logger.fatal message
+        end
+
+        def failsafe_logger
+          if defined?(::RAILS_DEFAULT_LOGGER) && !::RAILS_DEFAULT_LOGGER.nil?
+            ::RAILS_DEFAULT_LOGGER
+          else
+            Logger.new($stderr)
+          end
+        end
     end
 
-    cattr_accessor :middleware
-    self.middleware = MiddlewareStack.new do |middleware|
-      middlewares = File.join(File.dirname(__FILE__), "middlewares.rb")
-      middleware.instance_eval(File.read(middlewares))
-    end
+    cattr_accessor :error_file_path
+    self.error_file_path = Rails.public_path if defined?(Rails.public_path)
 
     include ActiveSupport::Callbacks
     define_callbacks :prepare_dispatch, :before_dispatch, :after_dispatch
 
-    # DEPRECATE: Remove arguments, since they are only used by CGI
     def initialize(output = $stdout, request = nil, response = nil)
-      @output = output
-      @app = @@middleware.build(lambda { |env| self.dup._call(env) })
+      @output, @request, @response = output, request, response
     end
 
-    def dispatch
+    def dispatch_unlocked
       begin
         run_callbacks :before_dispatch
-        controller = Routing::Routes.recognize(@request)
-        controller.process(@request, @response).to_a
+        handle_request
       rescue Exception => exception
-        if controller ||= (::ApplicationController rescue Base)
-          controller.process_with_exception(@request, @response, exception).to_a
-        else
-          raise exception
-        end
+        failsafe_rescue exception
       ensure
         run_callbacks :after_dispatch, :enumerator => :reverse_each
       end
     end
 
-    # DEPRECATE: Remove CGI support
+    def dispatch
+      if ActionController::Base.allow_concurrency
+        dispatch_unlocked
+      else
+        @@guard.synchronize do
+          dispatch_unlocked
+        end
+      end
+    end
+
     def dispatch_cgi(cgi, session_options)
-      CGIHandler.dispatch_cgi(self, cgi, @output)
+      if cgi ||= self.class.failsafe_response(@output, '400 Bad Request') { CGI.new }
+        @request = CgiRequest.new(cgi, session_options)
+        @response = CgiResponse.new(cgi)
+        dispatch
+      end
+    rescue Exception => exception
+      failsafe_rescue exception
     end
 
     def call(env)
-      @app.call(env)
-    end
-
-    def _call(env)
-      @request = Request.new(env)
-      @response = Response.new
+      @request = RackRequest.new(env)
+      @response = RackResponse.new(@request)
       dispatch
     end
 
@@ -93,6 +146,7 @@ module ActionController
       run_callbacks :prepare_dispatch
 
       Routing::Routes.reload
+      ActionController::Base.view_paths.reload!
       ActionView::Helpers::AssetTagHelper::AssetTag::Cache.clear
     end
 
@@ -108,11 +162,35 @@ module ActionController
       Base.logger.flush
     end
 
+    def mark_as_test_request!
+      @test_request = true
+      self
+    end
+
+    def test_request?
+      @test_request
+    end
+
     def checkin_connections
       # Don't return connection (and peform implicit rollback) if this request is a part of integration test
-      # TODO: This callback should have direct access to env
-      return if @request.key?("rack.test")
+      return if test_request?
       ActiveRecord::Base.clear_active_connections!
     end
+
+    protected
+      def handle_request
+        @controller = Routing::Routes.recognize(@request)
+        @controller.process(@request, @response).out(@output)
+      end
+
+      def failsafe_rescue(exception)
+        self.class.failsafe_response(@output, '500 Internal Server Error', exception) do
+          if @controller ||= defined?(::ApplicationController) ? ::ApplicationController : Base
+            @controller.process_with_exception(@request, @response, exception).out(@output)
+          else
+            raise exception
+          end
+        end
+      end
   end
 end

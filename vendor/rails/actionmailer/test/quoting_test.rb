@@ -1,5 +1,6 @@
 # encoding: utf-8
 require 'abstract_unit'
+require 'tmail'
 require 'tempfile'
 
 class QuotingTest < Test::Unit::TestCase

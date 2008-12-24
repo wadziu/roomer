@@ -1,43 +1,22 @@
+require 'action_controller/mime_type'
+
 module ActionView #:nodoc:
   class Template
     extend TemplateHandlers
     extend ActiveSupport::Memoizable
     include Renderable
 
-    # Templates that are exempt from layouts
-    @@exempt_from_layout = Set.new([/\.rjs$/])
-
-    # Don't render layouts for templates with the given extensions.
-    def self.exempt_from_layout(*extensions)
-      regexps = extensions.collect do |extension|
-        extension.is_a?(Regexp) ? extension : /\.#{Regexp.escape(extension.to_s)}$/
-      end
-      @@exempt_from_layout.merge(regexps)
-    end
-
     attr_accessor :filename, :load_path, :base_path, :name, :format, :extension
     delegate :to_s, :to => :path
 
     def initialize(template_path, load_paths = [])
       template_path = template_path.dup
-      @load_path, @filename = find_full_path(template_path, load_paths)
       @base_path, @name, @format, @extension = split(template_path)
       @base_path.to_s.gsub!(/\/$/, '') # Push to split method
+      @load_path, @filename = find_full_path(template_path, load_paths)
 
       # Extend with partial super powers
       extend RenderablePartial if @name =~ /^_/
-    end
-
-    def accessible_paths
-      paths = []
-      paths << path
-      paths << path_without_extension
-      if multipart?
-        formats = format.split(".")
-        paths << "#{path_without_format_and_extension}.#{formats.first}"
-        paths << "#{path_without_format_and_extension}.#{formats.second}"
-      end
-      paths
     end
 
     def format_and_extension
@@ -80,15 +59,6 @@ module ActionView #:nodoc:
     end
     memoize :relative_path
 
-    def exempt_from_layout?
-      @@exempt_from_layout.any? { |exempted| path =~ exempted }
-    end
-
-    def mtime
-      File.mtime(filename)
-    end
-    memoize :mtime
-
     def source
       File.read(filename)
     end
@@ -111,20 +81,6 @@ module ActionView #:nodoc:
       end
     end
 
-    def stale?
-      File.mtime(filename) > mtime
-    end
-
-    def loaded?
-      @loaded
-    end
-
-    def load!
-      @loaded = true
-      compile({})
-      freeze
-    end
-
     private
       def valid_extension?(extension)
         Template.template_handler_extensions.include?(extension)
@@ -133,7 +89,7 @@ module ActionView #:nodoc:
       def find_full_path(path, load_paths)
         load_paths = Array(load_paths) + [nil]
         load_paths.each do |load_path|
-          file = load_path ? "#{load_path.to_str}/#{path}" : path
+          file = [load_path, path].compact.join('/')
           return load_path, file if File.file?(file)
         end
         raise MissingTemplate.new(load_paths, path)
@@ -143,14 +99,16 @@ module ActionView #:nodoc:
       #   [base_path, name, format, extension]
       def split(file)
         if m = file.match(/^(.*\/)?([^\.]+)\.?(\w+)?\.?(\w+)?\.?(\w+)?$/)
-          if valid_extension?(m[5]) # Multipart formats
+          if m[5] # Multipart formats
             [m[1], m[2], "#{m[3]}.#{m[4]}", m[5]]
-          elsif valid_extension?(m[4]) # Single format
+          elsif m[4] # Single format
             [m[1], m[2], m[3], m[4]]
-          elsif valid_extension?(m[3]) # No format
-            [m[1], m[2], nil, m[3]]
-          else # No extension
-            [m[1], m[2], m[3], nil]
+          else
+            if valid_extension?(m[3]) # No format
+              [m[1], m[2], nil, m[3]]
+            else # No extension
+              [m[1], m[2], m[3], nil]
+            end
           end
         end
       end

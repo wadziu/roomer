@@ -1,3 +1,12 @@
+require 'action_controller/mime_type'
+require 'action_controller/request'
+require 'action_controller/response'
+require 'action_controller/routing'
+require 'action_controller/resources'
+require 'action_controller/url_rewriter'
+require 'action_controller/status_codes'
+require 'action_view'
+require 'drb'
 require 'set'
 
 module ActionController #:nodoc:
@@ -164,8 +173,8 @@ module ActionController #:nodoc:
   #
   # Other options for session storage are:
   #
-  # * ActiveRecord::SessionStore - Sessions are stored in your database, which works better than PStore with multiple app servers and,
-  #   unlike CookieStore, hides your session contents from the user. To use ActiveRecord::SessionStore, set
+  # * ActiveRecordStore - Sessions are stored in your database, which works better than PStore with multiple app servers and,
+  #   unlike CookieStore, hides your session contents from the user. To use ActiveRecordStore, set
   #
   #     config.action_controller.session_store = :active_record_store
   #
@@ -254,7 +263,7 @@ module ActionController #:nodoc:
     cattr_reader :protected_instance_variables
     # Controller specific instance variables which will not be accessible inside views.
     @@protected_instance_variables = %w(@assigns @performed_redirect @performed_render @variables_added @request_origin @url @parent_controller
-                                        @action_name @before_filter_chain_aborted @action_cache_path @_session @_headers @_params
+                                        @action_name @before_filter_chain_aborted @action_cache_path @_session @_cookies @_headers @_params
                                         @_flash @_response)
 
     # Prepends all the URL-generating helpers from AssetHelper. This makes it possible to easily move javascripts, stylesheets,
@@ -326,10 +335,6 @@ module ActionController #:nodoc:
     # Sets the token parameter name for RequestForgery. Calling +protect_from_forgery+
     # sets it to <tt>:authenticity_token</tt> by default.
     cattr_accessor :request_forgery_protection_token
-
-    # Controls the IP Spoofing check when determining the remote IP.
-    @@ip_spoofing_check = true
-    cattr_accessor :ip_spoofing_check
 
     # Indicates whether or not optimise the generated named
     # route helper methods
@@ -502,7 +507,7 @@ module ActionController #:nodoc:
         protected :filter_parameters
       end
 
-      delegate :exempt_from_layout, :to => 'ActionView::Template'
+      delegate :exempt_from_layout, :to => 'ActionView::Base'
     end
 
     public
@@ -524,7 +529,7 @@ module ActionController #:nodoc:
       end
 
       def send_response
-        response.prepare!
+        response.prepare! unless component_request?
         response
       end
 
@@ -860,7 +865,7 @@ module ActionController #:nodoc:
         raise DoubleRenderError, "Can only render or redirect once per action" if performed?
 
         if options.nil?
-          return render(:file => default_template, :layout => true)
+          return render(:file => default_template_name, :layout => true)
         elsif !extra_options.is_a?(Hash)
           raise RenderError, "You called render with invalid options : #{options.inspect}, #{extra_options.inspect}"
         else
@@ -871,9 +876,8 @@ module ActionController #:nodoc:
           end
         end
 
-        layout = pick_layout(options)
-        response.layout = layout.path_without_format_and_extension if layout
-        logger.info("Rendering template within #{layout.path_without_format_and_extension}") if logger && layout
+        response.layout = layout = pick_layout(options)
+        logger.info("Rendering template within #{layout}") if logger && layout
 
         if content_type = options[:content_type]
           response.content_type = content_type.to_s
@@ -898,7 +902,7 @@ module ActionController #:nodoc:
             render_for_text(@template.render(options.merge(:layout => layout)), options[:status])
 
           elsif action_name = options[:action]
-            render_for_file(default_template(action_name.to_s), options[:status], layout)
+            render_for_file(default_template_name(action_name.to_s), options[:status], layout)
 
           elsif xml = options[:xml]
             response.content_type ||= Mime::XML
@@ -933,7 +937,7 @@ module ActionController #:nodoc:
             render_for_text(nil, options[:status])
 
           else
-            render_for_file(default_template, options[:status], layout)
+            render_for_file(default_template_name, options[:status], layout)
           end
         end
       end
@@ -990,7 +994,7 @@ module ActionController #:nodoc:
         @performed_redirect = false
         response.redirected_to = nil
         response.redirected_to_method_params = nil
-        response.status = DEFAULT_RENDER_STATUS_CODE
+        response.headers['Status'] = DEFAULT_RENDER_STATUS_CODE
         response.headers.delete('Location')
       end
 
@@ -1160,19 +1164,20 @@ module ActionController #:nodoc:
       def reset_session #:doc:
         request.reset_session
         @_session = request.session
+        response.session = @_session
       end
+
 
     private
       def render_for_file(template_path, status = nil, layout = nil, locals = {}) #:nodoc:
-        path = template_path.respond_to?(:path_without_format_and_extension) ? template_path.path_without_format_and_extension : template_path
-        logger.info("Rendering #{path}" + (status ? " (#{status})" : '')) if logger
+        logger.info("Rendering #{template_path}" + (status ? " (#{status})" : '')) if logger
         render_for_text @template.render(:file => template_path, :locals => locals, :layout => layout), status
       end
 
       def render_for_text(text = nil, status = nil, append_response = false) #:nodoc:
         @performed_render = true
 
-        response.status = interpret_status(status || DEFAULT_RENDER_STATUS_CODE)
+        response.headers['Status'] = interpret_status(status || DEFAULT_RENDER_STATUS_CODE)
 
         if append_response
           response.body ||= ''
@@ -1194,7 +1199,7 @@ module ActionController #:nodoc:
       end
 
       def assign_shortcuts(request, response)
-        @_request, @_params = request, request.parameters
+        @_request, @_params, @_cookies = request, request.parameters, request.cookies
 
         @_response         = response
         @_response.session = request.session
@@ -1212,6 +1217,7 @@ module ActionController #:nodoc:
       def log_processing
         if logger && logger.info?
           log_processing_for_request_id
+          log_processing_for_session_id
           log_processing_for_parameters
         end
       end
@@ -1222,6 +1228,13 @@ module ActionController #:nodoc:
         request_id << "(for #{request_origin}) [#{request.method.to_s.upcase}]"
 
         logger.info(request_id)
+      end
+
+      def log_processing_for_session_id
+        if @_session && @_session.respond_to?(:session_id) && @_session.respond_to?(:dbman) &&
+            !@_session.dbman.is_a?(CGI::Session::CookieStore)
+          logger.info "  Session ID: #{@_session.session_id}"
+        end
       end
 
       def log_processing_for_parameters
@@ -1242,17 +1255,10 @@ module ActionController #:nodoc:
         elsif respond_to? :method_missing
           method_missing action_name
           default_render unless performed?
+        elsif template_exists?
+          default_render
         else
-          begin
-            default_render
-          rescue ActionView::MissingTemplate => e
-            # Was the implicit template missing, or was it another template?
-            if e.path == default_template_name
-              raise UnknownAction, "No action responded to #{action_name}. Actions: #{action_methods.sort.to_sentence}", caller
-            else
-              raise e
-            end
-          end
+          raise UnknownAction, "No action responded to #{action_name}. Actions: #{action_methods.sort.to_sentence}", caller
         end
       end
 
@@ -1263,6 +1269,11 @@ module ActionController #:nodoc:
       def assign_names
         @action_name = (params['action'] || 'index')
       end
+
+      def assign_default_content_type_and_charset
+        response.assign_default_content_type_and_charset!
+      end
+      deprecate :assign_default_content_type_and_charset => :'response.assign_default_content_type_and_charset!'
 
       def action_methods
         self.class.action_methods
@@ -1298,8 +1309,10 @@ module ActionController #:nodoc:
         @_session.close if @_session && @_session.respond_to?(:close)
       end
 
-      def default_template(action_name = self.action_name)
-        self.view_paths.find_template(default_template_name(action_name), default_template_format)
+      def template_exists?(template_name = default_template_name)
+        @template.send(:_pick_template, template_name) ? true : false
+      rescue ActionView::MissingTemplate
+        false
       end
 
       def default_template_name(action_name = self.action_name)
@@ -1323,12 +1336,5 @@ module ActionController #:nodoc:
       def process_cleanup
         close_session
       end
-  end
-
-  Base.class_eval do
-    include Flash, Filters, Layout, Benchmarking, Rescue, MimeResponds, Helpers
-    include Cookies, Caching, Verification, Streaming
-    include SessionManagement, HttpAuthentication::Basic::ControllerMethods
-    include RecordIdentifier, RequestForgeryProtection, Translation
   end
 end

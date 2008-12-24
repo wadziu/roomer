@@ -27,24 +27,6 @@ class MethodScopingTest < ActiveRecord::TestCase
     end
   end
 
-  def test_scoped_find_last
-    highest_salary = Developer.find(:first, :order => "salary DESC")
-
-    Developer.with_scope(:find => { :order => "salary" }) do
-      assert_equal highest_salary, Developer.last
-    end
-  end
-
-  def test_scoped_find_last_preserves_scope
-    lowest_salary = Developer.find(:first, :order => "salary ASC")
-    highest_salary = Developer.find(:first, :order => "salary DESC")
-
-    Developer.with_scope(:find => { :order => "salary" }) do
-      assert_equal highest_salary, Developer.last
-      assert_equal lowest_salary, Developer.first
-    end
-  end
-
   def test_scoped_find_combines_conditions
     Developer.with_scope(:find => { :conditions => "salary = 9000" }) do
       assert_equal developers(:poor_jamis), Developer.find(:first, :conditions => "name = 'Jamis'")
@@ -539,73 +521,6 @@ class HasAndBelongsToManyScopingTest< ActiveRecord::TestCase
   end
 end
 
-
-class DefaultScopingTest < ActiveRecord::TestCase
-  fixtures :developers
-
-  def test_default_scope
-    expected = Developer.find(:all, :order => 'salary DESC').collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.find(:all).collect { |dev| dev.salary }
-    assert_equal expected, received
-  end
-
-  def test_default_scoping_with_threads
-    scope = [{ :create => {}, :find => { :order => 'salary DESC' } }]
-
-    2.times do
-      Thread.new { assert_equal scope, DeveloperOrderedBySalary.send(:scoped_methods) }.join
-    end
-  end
-
-  def test_default_scoping_with_inheritance
-    scope = [{ :create => {}, :find => { :order => 'salary DESC' } }]
-
-    # Inherit a class having a default scope and define a new default scope
-    klass = Class.new(DeveloperOrderedBySalary)
-    klass.send :default_scope, {}
-
-    # Scopes added on children should append to parent scope
-    expected_klass_scope = [{ :create => {}, :find => { :order => 'salary DESC' }}, { :create => {}, :find => {} }]
-    assert_equal expected_klass_scope, klass.send(:scoped_methods)
-    
-    # Parent should still have the original scope
-    assert_equal scope, DeveloperOrderedBySalary.send(:scoped_methods)
-  end
-
-  def test_method_scope
-    expected = Developer.find(:all, :order => 'name DESC').collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.all_ordered_by_name.collect { |dev| dev.salary }
-    assert_equal expected, received
-  end
-
-  def test_nested_scope
-    expected = Developer.find(:all, :order => 'name DESC').collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.with_scope(:find => { :order => 'name DESC'}) do
-      DeveloperOrderedBySalary.find(:all).collect { |dev| dev.salary }
-    end
-    assert_equal expected, received
-  end
-
-  def test_named_scope
-    expected = Developer.find(:all, :order => 'name DESC').collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.by_name.find(:all).collect { |dev| dev.salary }
-    assert_equal expected, received
-  end
-
-  def test_nested_exclusive_scope
-    expected = Developer.find(:all, :limit => 100).collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.with_exclusive_scope(:find => { :limit => 100 }) do
-      DeveloperOrderedBySalary.find(:all).collect { |dev| dev.salary }
-    end
-    assert_equal expected, received
-  end
-
-  def test_overwriting_default_scope
-    expected = Developer.find(:all, :order => 'salary').collect { |dev| dev.salary }
-    received = DeveloperOrderedBySalary.find(:all, :order => 'salary').collect { |dev| dev.salary }
-    assert_equal expected, received
-  end
-end
 
 =begin
 # We disabled the scoping for has_one and belongs_to as we can't think of a proper use case

@@ -1,3 +1,13 @@
+require 'active_record/associations/association_proxy'
+require 'active_record/associations/association_collection'
+require 'active_record/associations/belongs_to_association'
+require 'active_record/associations/belongs_to_polymorphic_association'
+require 'active_record/associations/has_one_association'
+require 'active_record/associations/has_many_association'
+require 'active_record/associations/has_many_through_association'
+require 'active_record/associations/has_and_belongs_to_many_association'
+require 'active_record/associations/has_one_through_association'
+
 module ActiveRecord
   class HasManyThroughAssociationNotFoundError < ActiveRecordError #:nodoc:
     def initialize(owner_class_name, reflection)
@@ -65,18 +75,6 @@ module ActiveRecord
 
   # See ActiveRecord::Associations::ClassMethods for documentation.
   module Associations # :nodoc:
-    # These classes will be loaded when associatoins are created.
-    # So there is no need to eager load them.
-    autoload :AssociationCollection, 'active_record/associations/association_collection'
-    autoload :AssociationProxy, 'active_record/associations/association_proxy'
-    autoload :BelongsToAssociation, 'active_record/associations/belongs_to_association'
-    autoload :BelongsToPolymorphicAssociation, 'active_record/associations/belongs_to_polymorphic_association'
-    autoload :HasAndBelongsToManyAssociation, 'active_record/associations/has_and_belongs_to_many_association'
-    autoload :HasManyAssociation, 'active_record/associations/has_many_association'
-    autoload :HasManyThroughAssociation, 'active_record/associations/has_many_through_association'
-    autoload :HasOneAssociation, 'active_record/associations/has_one_association'
-    autoload :HasOneThroughAssociation, 'active_record/associations/has_one_through_association'
-
     def self.included(base)
       base.extend(ClassMethods)
     end
@@ -153,7 +151,7 @@ module ActiveRecord
     #   #others.destroy_all               |   X   |    X     |    X
     #   #others.find(*args)               |   X   |    X     |    X
     #   #others.find_first                |   X   |          |
-    #   #others.exists?                   |   X   |    X     |    X
+    #   #others.exist?                    |   X   |    X     |    X
     #   #others.uniq                      |   X   |    X     |    X
     #   #others.reset                     |   X   |    X     |    X
     #
@@ -652,7 +650,7 @@ module ActiveRecord
       #   Returns the number of associated objects.
       # [collection.find(...)]
       #   Finds an associated object according to the same rules as ActiveRecord::Base.find.
-      # [collection.exists?(...)]
+      # [collection.exist?(...)]
       #   Checks whether an associated object with the given conditions exists.
       #   Uses the same rules as ActiveRecord::Base.exists?.
       # [collection.build(attributes = {}, ...)]
@@ -682,7 +680,7 @@ module ActiveRecord
       # * <tt>Firm#clients.empty?</tt> (similar to <tt>firm.clients.size == 0</tt>)
       # * <tt>Firm#clients.size</tt> (similar to <tt>Client.count "firm_id = #{id}"</tt>)
       # * <tt>Firm#clients.find</tt> (similar to <tt>Client.find(id, :conditions => "firm_id = #{id}")</tt>)
-      # * <tt>Firm#clients.exists?(:name => 'ACME')</tt> (similar to <tt>Client.exists?(:name => 'ACME', :firm_id => firm.id)</tt>)
+      # * <tt>Firm#clients.exist?(:name => 'ACME')</tt> (similar to <tt>Client.exist?(:name => 'ACME', :firm_id => firm.id)</tt>)
       # * <tt>Firm#clients.build</tt> (similar to <tt>Client.new("firm_id" => id)</tt>)
       # * <tt>Firm#clients.create</tt> (similar to <tt>c = Client.new("firm_id" => id); c.save; c</tt>)
       # The declaration can also include an options hash to specialize the behavior of the association.
@@ -724,8 +722,6 @@ module ActiveRecord
       #   Specify second-order associations that should be eager loaded when the collection is loaded.
       # [:group]
       #   An attribute name by which the result should be grouped. Uses the <tt>GROUP BY</tt> SQL-clause.
-      # [:having]
-      #   Combined with +:group+ this can be used to filter the records that a <tt>GROUP BY</tt> returns. Uses the <tt>HAVING</tt> SQL-clause.
       # [:limit]
       #   An integer determining the limit on the number of rows that should be returned.
       # [:offset]
@@ -1107,7 +1103,7 @@ module ActiveRecord
       #   Finds an associated object responding to the +id+ and that
       #   meets the condition that it has to be associated with this object.
       #   Uses the same rules as ActiveRecord::Base.find.
-      # [collection.exists?(...)]
+      # [collection.exist?(...)]
       #   Checks whether an associated object with the given conditions exists.
       #   Uses the same rules as ActiveRecord::Base.exists?.
       # [collection.build(attributes = {})]
@@ -1133,7 +1129,7 @@ module ActiveRecord
       # * <tt>Developer#projects.empty?</tt>
       # * <tt>Developer#projects.size</tt>
       # * <tt>Developer#projects.find(id)</tt>
-      # * <tt>Developer#clients.exists?(...)</tt>
+      # * <tt>Developer#clients.exist?(...)</tt>
       # * <tt>Developer#projects.build</tt> (similar to <tt>Project.new("project_id" => id)</tt>)
       # * <tt>Developer#projects.create</tt> (similar to <tt>c = Project.new("project_id" => id); c.save; c</tt>)
       # The declaration may include an options hash to specialize the behavior of the association.
@@ -1183,8 +1179,6 @@ module ActiveRecord
       #   Specify second-order associations that should be eager loaded when the collection is loaded.
       # [:group]
       #   An attribute name by which the result should be grouped. Uses the <tt>GROUP BY</tt> SQL-clause.
-      # [:having]
-      #   Combined with +:group+ this can be used to filter the records that a <tt>GROUP BY</tt> returns. Uses the <tt>HAVING</tt> SQL-clause.
       # [:limit]
       #   An integer determining the limit on the number of rows that should be returned.
       # [:offset]
@@ -1453,7 +1447,7 @@ module ActiveRecord
             dependent_conditions << sanitize_sql(reflection.options[:conditions]) if reflection.options[:conditions]
             dependent_conditions << extra_conditions if extra_conditions
             dependent_conditions = dependent_conditions.collect {|where| "(#{where})" }.join(" AND ")
-            dependent_conditions = dependent_conditions.gsub('@', '\@')
+
             case reflection.options[:dependent]
               when :destroy
                 method_name = "has_many_dependent_destroy_for_#{reflection.name}".to_sym
@@ -1467,7 +1461,7 @@ module ActiveRecord
                     delete_all_has_many_dependencies(record,
                       "#{reflection.name}",
                       #{reflection.class_name},
-                      %@#{dependent_conditions}@)
+                      "#{dependent_conditions}")
                   end
                 }
               when :nullify
@@ -1477,7 +1471,7 @@ module ActiveRecord
                       "#{reflection.name}",
                       #{reflection.class_name},
                       "#{reflection.primary_key_name}",
-                      %@#{dependent_conditions}@)
+                      "#{dependent_conditions}")
                   end
                 }
               else
@@ -1557,7 +1551,7 @@ module ActiveRecord
         @@valid_keys_for_has_many_association = [
           :class_name, :table_name, :foreign_key, :primary_key,
           :dependent,
-          :select, :conditions, :include, :order, :group, :having, :limit, :offset,
+          :select, :conditions, :include, :order, :group, :limit, :offset,
           :as, :through, :source, :source_type,
           :uniq,
           :finder_sql, :counter_sql,
@@ -1613,7 +1607,7 @@ module ActiveRecord
         mattr_accessor :valid_keys_for_has_and_belongs_to_many_association
         @@valid_keys_for_has_and_belongs_to_many_association = [
           :class_name, :table_name, :join_table, :foreign_key, :association_foreign_key,
-          :select, :conditions, :include, :order, :group, :having, :limit, :offset,
+          :select, :conditions, :include, :order, :group, :limit, :offset,
           :uniq,
           :finder_sql, :counter_sql, :delete_sql, :insert_sql,
           :before_add, :after_add, :before_remove, :after_remove,
@@ -1662,7 +1656,7 @@ module ActiveRecord
           add_conditions!(sql, options[:conditions], scope)
           add_limited_ids_condition!(sql, options, join_dependency) if !using_limitable_reflections?(join_dependency.reflections) && ((scope && scope[:limit]) || options[:limit])
 
-          add_group!(sql, options[:group], options[:having], scope)
+          add_group!(sql, options[:group], scope)
           add_order!(sql, options[:order], scope)
           add_limit!(sql, options, scope) if using_limitable_reflections?(join_dependency.reflections)
           add_lock!(sql, options, scope)
@@ -1718,7 +1712,7 @@ module ActiveRecord
           end
 
           add_conditions!(sql, options[:conditions], scope)
-          add_group!(sql, options[:group], options[:having], scope)
+          add_group!(sql, options[:group], scope)
 
           if order && is_distinct
             connection.add_order_by_for_association_limiting!(sql, :order => order)
@@ -1731,70 +1725,46 @@ module ActiveRecord
           return sanitize_sql(sql)
         end
 
-        def tables_in_string(string)
-          return [] if string.blank?
-          string.scan(/([\.a-zA-Z_]+).?\./).flatten
-        end
-
         def conditions_tables(options)
           # look in both sets of conditions
           conditions = [scope(:find, :conditions), options[:conditions]].inject([]) do |all, cond|
             case cond
               when nil   then all
               when Array then all << cond.first
-              when Hash  then all << cond.keys
               else            all << cond
             end
           end
-          tables_in_string(conditions.join(' '))
+          conditions.join(' ').scan(/([\.a-zA-Z_]+).?\./).flatten
         end
 
         def order_tables(options)
           order = [options[:order], scope(:find, :order) ].join(", ")
           return [] unless order && order.is_a?(String)
-          tables_in_string(order)
+          order.scan(/([\.a-zA-Z_]+).?\./).flatten
         end
 
         def selects_tables(options)
           select = options[:select]
           return [] unless select && select.is_a?(String)
-          tables_in_string(select)
-        end
-
-        def joined_tables(options)
-          scope = scope(:find)
-          joins = options[:joins]
-          merged_joins = scope && scope[:joins] && joins ? merge_joins(scope[:joins], joins) : (joins || scope && scope[:joins])
-          [table_name] + case merged_joins
-          when Symbol, Hash, Array
-            if array_of_strings?(merged_joins)
-              tables_in_string(merged_joins.join(' '))
-            else
-              join_dependency = ActiveRecord::Associations::ClassMethods::InnerJoinDependency.new(self, merged_joins, nil)
-              join_dependency.join_associations.collect {|join_association| [join_association.aliased_join_table_name, join_association.aliased_table_name]}.flatten.compact
-            end
-          else
-            tables_in_string(merged_joins)
-          end
+          select.scan(/"?([\.a-zA-Z_]+)"?.?\./).flatten
         end
 
         # Checks if the conditions reference a table other than the current model table
-        def include_eager_conditions?(options, tables = nil, joined_tables = nil)
-          ((tables || conditions_tables(options)) - (joined_tables || joined_tables(options))).any?
+        def include_eager_conditions?(options, tables = nil)
+          ((tables || conditions_tables(options)) - [table_name]).any?
         end
 
         # Checks if the query order references a table other than the current model's table.
-        def include_eager_order?(options, tables = nil, joined_tables = nil)
-          ((tables || order_tables(options)) - (joined_tables || joined_tables(options))).any?
+        def include_eager_order?(options, tables = nil)
+          ((tables || order_tables(options)) - [table_name]).any?
         end
 
-        def include_eager_select?(options, joined_tables = nil)
-          (selects_tables(options) - (joined_tables || joined_tables(options))).any?
+        def include_eager_select?(options)
+          (selects_tables(options) - [table_name]).any?
         end
 
         def references_eager_loaded_tables?(options)
-          joined_tables = joined_tables(options)
-          include_eager_order?(options, nil, joined_tables) || include_eager_conditions?(options, nil, joined_tables) || include_eager_select?(options, joined_tables)
+          include_eager_order?(options) || include_eager_conditions?(options) || include_eager_select?(options)
         end
 
         def using_limitable_reflections?(reflections)
@@ -2198,7 +2168,7 @@ module ActiveRecord
             protected
 
               def aliased_table_name_for(name, suffix = nil)
-                if !parent.table_joins.blank? && parent.table_joins.to_s.downcase =~ %r{join(\s+\w+)?\s+#{active_record.connection.quote_table_name name.downcase}\son}
+                if !parent.table_joins.blank? && parent.table_joins.to_s.downcase =~ %r{join(\s+\w+)?\s+#{name.downcase}\son}
                   @join_dependency.table_aliases[name] += 1
                 end
 

@@ -188,7 +188,6 @@ module ActiveRecord
         def merge_options_from_reflection!(options)
           options.reverse_merge!(
             :group   => @reflection.options[:group],
-            :having  => @reflection.options[:having],
             :limit   => @reflection.options[:limit],
             :offset  => @reflection.options[:offset],
             :joins   => @reflection.options[:joins],
@@ -207,10 +206,7 @@ module ActiveRecord
         # Forwards any missing method call to the \target.
         def method_missing(method, *args)
           if load_target
-            unless @target.respond_to?(method)
-              message = "undefined method `#{method.to_s}' for \"#{@target}\":#{@target.class.to_s}"
-              raise NoMethodError, message
-            end
+            raise NoMethodError unless @target.respond_to?(method)
 
             if block_given?
               @target.send(method, *args)  { |*block_args| yield(*block_args) }

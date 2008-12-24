@@ -7,8 +7,6 @@ module ActionController
       # Mapper instances have relatively few instance methods, in order to avoid
       # clashes with named routes.
       class Mapper #:doc:
-        include ActionController::Resources
-
         def initialize(set) #:nodoc:
           @set = set
         end
@@ -138,13 +136,9 @@ module ActionController
             end
           end
 
-          def named_helper_module_eval(code, *args)
-            @module.module_eval(code, *args)
-          end
-
           def define_hash_access(route, name, kind, options)
             selector = hash_access_name(name, kind)
-            named_helper_module_eval <<-end_eval # We use module_eval to avoid leaks
+            @module.module_eval <<-end_eval # We use module_eval to avoid leaks
               def #{selector}(options = nil)
                 options ? #{options.inspect}.merge(options) : #{options.inspect}
               end
@@ -172,7 +166,7 @@ module ActionController
             #
             #   foo_url(bar, baz, bang, :sort_by => 'baz')
             #
-            named_helper_module_eval <<-end_eval # We use module_eval to avoid leaks
+            @module.module_eval <<-end_eval # We use module_eval to avoid leaks
               def #{selector}(*args)
 
                 #{generate_optimisation_block(route, kind)}
@@ -189,14 +183,6 @@ module ActionController
                 end
 
                 url_for(#{hash_access_method}(opts))
-                
-              end
-              #Add an alias to support the now deprecated formatted_* URL.
-              def formatted_#{selector}(*args)
-                ActiveSupport::Deprecation.warn(
-                  "formatted_#{selector}() has been deprecated. please pass format to the standard" +
-                  "#{selector}() method instead.", caller)
-                #{selector}(*args)
               end
               protected :#{selector}
             end_eval
@@ -204,11 +190,9 @@ module ActionController
           end
       end
 
-      attr_accessor :routes, :named_routes, :configuration_files
+      attr_accessor :routes, :named_routes, :configuration_file
 
       def initialize
-        self.configuration_files = []
-
         self.routes = []
         self.named_routes = NamedRouteCollection.new
 
@@ -222,6 +206,7 @@ module ActionController
       end
 
       def draw
+        clear!
         yield Mapper.new(self)
         install_helpers
       end
@@ -245,22 +230,8 @@ module ActionController
         routes.empty?
       end
 
-      def add_configuration_file(path)
-        self.configuration_files << path
-      end
-
-      # Deprecated accessor
-      def configuration_file=(path)
-        add_configuration_file(path)
-      end
-      
-      # Deprecated accessor
-      def configuration_file
-        configuration_files
-      end
-
       def load!
-        Routing.use_controllers!(nil) # Clear the controller cache so we may discover new ones
+        Routing.use_controllers! nil # Clear the controller cache so we may discover new ones
         clear!
         load_routes!
       end
@@ -269,38 +240,23 @@ module ActionController
       alias reload! load!
 
       def reload
-        if configuration_files.any? && @routes_last_modified
-          if routes_changed_at == @routes_last_modified
-            return # routes didn't change, don't reload
-          else
-            @routes_last_modified = routes_changed_at
-          end
+        if @routes_last_modified && configuration_file
+          mtime = File.stat(configuration_file).mtime
+          # if it hasn't been changed, then just return
+          return if mtime == @routes_last_modified
+          # if it has changed then record the new time and fall to the load! below
+          @routes_last_modified = mtime
         end
-
         load!
       end
 
       def load_routes!
-        if configuration_files.any?
-          configuration_files.each { |config| load(config) }
-          @routes_last_modified = routes_changed_at
+        if configuration_file
+          load configuration_file
+          @routes_last_modified = File.stat(configuration_file).mtime
         else
           add_route ":controller/:action/:id"
         end
-      end
-      
-      def routes_changed_at
-        routes_changed_at = nil
-        
-        configuration_files.each do |config|
-          config_changed_at = File.stat(config).mtime
-
-          if routes_changed_at.nil? || config_changed_at > routes_changed_at
-            routes_changed_at = config_changed_at 
-          end
-        end
-        
-        routes_changed_at
       end
 
       def add_route(path, options = {})
@@ -403,7 +359,7 @@ module ActionController
           end
 
           # don't use the recalled keys when determining which routes to check
-          routes = routes_by_controller[controller][action][options.reject {|k,v| !v}.keys.sort_by { |x| x.object_id }]
+          routes = routes_by_controller[controller][action][options.keys.sort_by { |x| x.object_id }]
 
           routes.each do |route|
             results = route.__send__(method, options, merged, expire_on)

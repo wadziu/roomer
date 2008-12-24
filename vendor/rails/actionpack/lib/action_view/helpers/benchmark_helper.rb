@@ -22,8 +22,8 @@ module ActionView
       # (:debug, :info, :warn, :error); the default value is :info.
       def benchmark(message = "Benchmarking", level = :info)
         if controller.logger
-          ms = Benchmark.ms { yield }
-          controller.logger.send(level, '%s (%.1fms)' % [message, ms])
+          seconds = Benchmark.realtime { yield }
+          controller.logger.send(level, "#{message} (#{'%.1f' % (seconds * 1000)}ms)")
         else
           yield
         end

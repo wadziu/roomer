@@ -30,8 +30,6 @@ require 'logger'
 #
 # Note: This logger is deprecated in favor of ActiveSupport::BufferedLogger
 class Logger
-  ##
-  # :singleton-method:
   # Set to false to disable the silencer
   cattr_accessor :silencer
   self.silencer = true

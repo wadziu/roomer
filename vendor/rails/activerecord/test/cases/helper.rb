@@ -5,11 +5,9 @@ require 'config'
 require 'test/unit'
 
 require 'active_record'
-require 'active_record/test_case'
 require 'active_record/fixtures'
+require 'active_record/test_case'
 require 'connection'
-
-require 'cases/repair_helper'
 
 # Show backtraces for deprecated behavior for quicker cleanup.
 ActiveSupport::Deprecation.debug = true
@@ -26,7 +24,6 @@ end
 
 def uses_mocha(description)
   require 'rubygems'
-  gem 'mocha', '>= 0.9.3'
   require 'mocha'
   yield
 rescue LoadError
@@ -51,24 +48,15 @@ class << ActiveRecord::Base
 end
 
 unless ENV['FIXTURE_DEBUG']
-  module ActiveRecord::TestFixtures::ClassMethods
-    def try_to_load_dependency_with_silence(*args)
-      ActiveRecord::Base.logger.silence { try_to_load_dependency_without_silence(*args)}
+  module Test #:nodoc:
+    module Unit #:nodoc:
+      class << TestCase #:nodoc:
+        def try_to_load_dependency_with_silence(*args)
+          ActiveRecord::Base.logger.silence { try_to_load_dependency_without_silence(*args)}
+        end
+
+        alias_method_chain :try_to_load_dependency, :silence
+      end
     end
-
-    alias_method_chain :try_to_load_dependency, :silence
-  end
-end
-
-class ActiveSupport::TestCase
-  include ActiveRecord::TestFixtures
-  include ActiveRecord::Testing::RepairHelper
-
-  self.fixture_path = FIXTURES_ROOT
-  self.use_instantiated_fixtures  = false
-  self.use_transactional_fixtures = true
-
-  def create_fixtures(*table_names, &block)
-    Fixtures.create_fixtures(ActiveSupport::TestCase.fixture_path, table_names, {}, &block)
   end
 end

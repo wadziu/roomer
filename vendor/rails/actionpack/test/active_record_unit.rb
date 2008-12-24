@@ -82,9 +82,7 @@ class ActiveRecordTestConnector
   end
 end
 
-class ActiveRecordTestCase < ActionController::TestCase
-  include ActiveRecord::TestFixtures
-
+class ActiveRecordTestCase < ActiveSupport::TestCase
   # Set our fixture path
   if ActiveRecordTestConnector.able_to_connect
     self.fixture_path = [FIXTURE_LOAD_PATH]
@@ -98,6 +96,8 @@ class ActiveRecordTestCase < ActionController::TestCase
   def run(*args)
     super if ActiveRecordTestConnector.connected
   end
+
+  def default_test; end
 end
 
 ActiveRecordTestConnector.setup

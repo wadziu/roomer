@@ -1,4 +1,6 @@
 require 'abstract_unit'
+require 'action_controller/integration'
+require 'action_controller/routing'
 
 unless defined? ApplicationController
   class ApplicationController < ActionController::Base
@@ -6,6 +8,8 @@ unless defined? ApplicationController
 end
 
 class UploadTestController < ActionController::Base
+  session :off
+
   def update
     SessionUploadTest.last_request_type = ActionController::Base.param_parsers[request.content_type]
     render :text => "got here"

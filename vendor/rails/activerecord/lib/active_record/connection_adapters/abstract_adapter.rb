@@ -3,7 +3,6 @@ require 'date'
 require 'bigdecimal'
 require 'bigdecimal/util'
 
-# TODO: Autoload these files
 require 'active_record/connection_adapters/abstract/schema_definitions'
 require 'active_record/connection_adapters/abstract/schema_statements'
 require 'active_record/connection_adapters/abstract/database_statements'
@@ -160,9 +159,9 @@ module ActiveRecord
         @open_transactions -= 1
       end
 
-      def log_info(sql, name, ms)
+      def log_info(sql, name, seconds)
         if @logger && @logger.debug?
-          name = '%s (%.1fms)' % [name || 'SQL', ms]
+          name = "#{name.nil? ? "SQL" : name} (#{sprintf("%.1f", seconds * 1000)}ms)"
           @logger.debug(format_log_entry(name, sql.squeeze(' ')))
         end
       end
@@ -171,9 +170,9 @@ module ActiveRecord
         def log(sql, name)
           if block_given?
             result = nil
-            ms = Benchmark.ms { result = yield }
-            @runtime += ms
-            log_info(sql, name, ms)
+            seconds = Benchmark.realtime { result = yield }
+            @runtime += seconds
+            log_info(sql, name, seconds)
             result
           else
             log_info(sql, name, 0)
