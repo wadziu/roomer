@@ -1,16 +1,16 @@
 class ReservationsController < ApplicationController
   
-  before_filter :login_required, :only => [ :create, :destroy, :edit, :new ]
-  before_filter :must_be_owner, :only => [ :destroy, :edit ] 
+  before_filter :login_required, :only => [ :create, :destroy, :edit, :update, :new ]
+  before_filter :must_be_owner, :only => [ :destroy, :edit, :update ] 
 
 
   # GET /reservations
   # GET /reservations.xml
   def index
     reservations_list = Reservation.find(:all, 
-                                        :conditions => ['? <= begining_at AND begining_at <= ?', 
-                                        Date.today, Date.today + 14.days],
-                                        :order => "begining_at ASC")
+                          :conditions => ['? <= begining_at AND begining_at <= ?', 
+                          Date.today, Date.today + 14.days],
+                          :order => "begining_at ASC")
 
     @reservations = ReservationsController.prepare_reservations_for_view(reservations_list)
 
@@ -53,7 +53,7 @@ class ReservationsController < ApplicationController
     @reservation = Reservation.new
     
     # instance of selected day
-    date = Time.zone.parse(Date.today.to_s) + params[:day].to_i.days
+    date = Date.today + params[:day].to_i.days
 
     # hours and minutes offset counted from last reservations in this day
     reservation_offset = Reservation.find(:first, 
@@ -87,7 +87,7 @@ class ReservationsController < ApplicationController
     rescue
       # TODO move 8.hours internal to settings
       @reservation.date ||= (Date.today + 
-                             params[:day].to_i.days + 
+                             params[:day].to_i.days +  
                              8.hours).strftime("%H:%M, 15min, %d-%m-%Y")
     end
 
@@ -146,17 +146,19 @@ class ReservationsController < ApplicationController
               }
             
 
-            reservations = ReservationsController.prepare_reservations_for_view(Reservation.find(
+            reservations = ReservationsController.prepare_reservations_for_view(
+              Reservation.find(
                   :all, 
                   :conditions => ["date_trunc('day', end_at) = ?", @reservation.end_at.strftime("%Y-%m-%d")],
                   :order => "begining_at ASC"
-            ))
+              )
+            )
 
             page.replace_html \
               element_id,
               :partial => 'day', 
               :locals => { 
-                :current_date => @reservation.begining_at,
+                :current_date => @reservation.begining_at.to_date,
                 :reservations => reservations[@reservation.end_at.strftime("%Y-%m-%d")]
             }
             
@@ -200,7 +202,7 @@ class ReservationsController < ApplicationController
         flash[:notice] = 'Reservation was successfully updated.'
         format.xml  { head :ok }
       else
-        format.xml  { render :xml => @reservation.errors, :status => :unprocessable_entity }
+        format.xml  { render :xml => @reservation.errors, :status => 500 }
       end
     end
   end
@@ -218,19 +220,20 @@ class ReservationsController < ApplicationController
           element_id = "#{Date::DAYNAMES[@reservation.begining_at.wday].downcase}_" +
             "#{@reservation.begining_at.day}"
 
-          reservations = ReservationsController.prepare_reservations_for_view(Reservation.find(
+          reservations = ReservationsController.prepare_reservations_for_view(
+              Reservation.find(
                 :all, 
                 :conditions => ["date_trunc('day', end_at) = date_trunc('day', CAST(? AS timestamp))", 
                   @reservation.begining_at],
                 :order => "begining_at ASC"
-              ))
-
+              )
+          )
 
           page.replace_html \
             element_id,
             :partial => 'day', 
             :locals => { 
-              :current_date =>  @reservation.begining_at,
+              :current_date =>  @reservation.begining_at.to_date,
               :reservations => reservations[@reservation.end_at.strftime("%Y-%m-%d")]
             }
 

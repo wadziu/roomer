@@ -21,6 +21,16 @@ ActiveRecord::Schema.define(:version => 20081127130928) do
     t.datetime "updated_at"
   end
 
+  create_table "room_reservations", :force => true do |t|
+    t.string   "supplicant"
+    t.text     "comment"
+    t.datetime "begining_at"
+    t.datetime "end_at"
+    t.integer  "room_id"
+    t.datetime "created_at"
+    t.datetime "updated_at"
+  end
+
   create_table "rooms", :force => true do |t|
     t.string   "name"
     t.integer  "number"

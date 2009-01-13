@@ -80,6 +80,15 @@ class Reservation < ActiveRecord::Base
   #
   def resolve_datetime_range
     # TODO make this method clear
+    
+    # validates given date string
+    errors.add('Wrong date input', ' use following scheme to define reservation: H:M, N-min, dd-mm-YYYY') \
+      unless self.date =~ /^([0-9]{1,2}):([0-9]{1,2}), *([0-9]{1,2})(min|m|h)?, *([0-9]{2})\-([0-9]{2})\-([0-9]{4})$/
+
+    if errors.length > 0
+      return
+    end
+
     date_context = self.date.split(",") # [ start_time, occupation_time, date(dd-mm-yyyy) ]
 
     # initialize reservation's begining datetime
@@ -91,7 +100,11 @@ class Reservation < ActiveRecord::Base
         minutes = minutes.to_i + 1
       end
 
-      Time.zone.parse(date_context[2]) + hours.to_i.hours + minutes.to_i.minutes
+      Time.zone.parse( 
+        Time.zone.parse(
+          date_context[2]
+        ).strftime("%d-%m-%Y")
+      ) + hours.to_i.hours + minutes.to_i.minutes
     }
 
     # initialize reservation's end datetime

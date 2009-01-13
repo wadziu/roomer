@@ -1,11 +1,11 @@
-# Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
+prezes:
+  id: 1
+  name: Salka prezesa 
+  number: 1
+  description: Sala konferecyjna obok gabinetu prezesa
 
-one:
-  name: 
-  number: 
-  description: MyText
-
-two:
-  name: 
-  number: 
-  description: MyText
+dyrektor:
+  id: 2
+  name: Salka dyrektora
+  number: 2
+  description: Sala konferencyjna obok gabinetu dyrektora

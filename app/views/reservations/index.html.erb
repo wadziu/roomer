@@ -1,7 +1,7 @@
 <h2>Reservations</h2>
 
 <% for i in (0..13) %>
-  <% current_date = Time.zone.parse(Date.today.to_s) + i.days %>
+  <% current_date = Date.today + i.days %>
   <div id="<%= "#{Date::DAYNAMES[current_date.wday].downcase}_#{current_date.day}" %>" 
     class="<%= Date::DAYNAMES[current_date.wday].downcase %> column span-3">
  

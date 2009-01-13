@@ -1,15 +1,35 @@
-# Read about fixtures at http://ar.rubyonrails.org/classes/Fixtures.html
+today:
+  id: 1
+  room_id: 1
+  user_id: 1
+  comment: potrzebny projektor oraz laptop
+  begining_at: <%= Time.zone.parse(
+                     Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+                   ).strftime("%Y-%m-%d %H:%M:%S") %>
+  end_at: <%=  (Time.zone.parse(
+                 Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+               ) + 30.minutes).strftime("%Y-%m-%d %H:%M:%S") %>
 
-one:
-  room_id: 
-  user_id: 
-  comment: MyText
-  begining_at: 2008-11-27 14:09:28
-  end_at: 2008-11-27 14:09:28
+tommorow:
+  id: 2
+  room_id: 1
+  user_id: 1
+  comment: 
+  begining_at: <%= (Time.zone.parse(
+                     Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+                   ) + 1.day).strftime("%Y-%m-%d %H:%M:%S") %>
+  end_at: <%=  (Time.zone.parse(
+                 Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+               ) + 1.day + 30.minutes).strftime("%Y-%m-%d %H:%M:%S") %>
 
-two:
-  room_id: 
-  user_id: 
-  comment: MyText
-  begining_at: 2008-11-27 14:09:28
-  end_at: 2008-11-27 14:09:28
+yesterday:
+  id: 3
+  room_id: 2
+  user_id: 1
+  comment: potrzebna tablica i system naglosnieniowy
+  begining_at: <%= (Time.zone.parse(
+                     Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+                   ) - 1.day).strftime("%Y-%m-%d %H:%M:%S") %>
+  end_at: <%=  (Time.zone.parse(
+                 Time.zone.now.strftime("%Y-%m-%d") + " 08:00:00"
+               ) - 1.day + 30.minutes).strftime("%Y-%m-%d %H:%M:%S") %>

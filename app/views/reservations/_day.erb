@@ -4,7 +4,7 @@
       :url => { 
         :controller => 'reservations', 
         :action => 'new',
-        :day => (current_date - Time.zone.parse(Date.today.to_s)).to_i/(24*3600)
+        :day => (current_date - Date.today).day/(24*3600)
       },
       :method => 'get', 
       :html => { :class => 'new-reservation' } 
@@ -33,7 +33,7 @@
             :html => { :class => 'detail-reservation' }
           %>
           
-          <%= link_to_remote ('-', 
+          <%= link_to_remote('-', 
             :url => {
               :controller => 'reservations',
               :action => 'destroy',
