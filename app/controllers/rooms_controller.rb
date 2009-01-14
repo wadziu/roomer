@@ -48,7 +48,7 @@ class RoomsController < ApplicationController
         format.xml  { render :xml => @room, :status => :created, :location => @room }
       else
         format.html { render :action => "new" }
-        format.xml  { render :xml => @room.errors, :status => :unprocessable_entity }
+        format.xml  { render :xml => @room.errors, :status => 500 }
       end
     end
   end

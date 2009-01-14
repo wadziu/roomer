@@ -65,22 +65,6 @@ class ReservationsController < ApplicationController
                               :order => "MAX(end_at) ASC",
                               :group => "room_id")
 
-=begin
-    # FIXME make this part more complex and optimal
-    for i in 0..(reservations.length-1)
-      unless reservations[i+1].nil?
-        unless (reservations[i].end_at + 15.minutes) >= reservations[i+1].begining_at
-          @reservation.date = reservations[i].end_at.strftime("%H:%M, 15min, %d-%m-%Y")
-          @reservation.room_id = reservations[i].room_id
-          break
-        end
-      else
-        @reservation.date = reservations[i].end_at.strftime("%H:%M, 15min, %d-%m-%Y")
-        @reservation.room_id = reservations[i].room_id
-      end
-    end
-=end
-
     begin
       @reservation.date = reservation_offset.end_at.strftime("%H:%M, 15min, %d-%m-%Y")
       @reservation.room_id = reservation_offset.room_id
@@ -135,8 +119,7 @@ class ReservationsController < ApplicationController
         format.js { 
           render :update do |page|
 
-            element_id = "#{Date::DAYNAMES[@reservation.begining_at.wday].downcase}_" +
-              "#{@reservation.begining_at.day}"
+            element_id = ReservationsController.create_element_id(@reservation.begining_at)
 
             page.replace_html \
               "new_reservation_box", 
@@ -217,8 +200,7 @@ class ReservationsController < ApplicationController
       format.xml  { head :ok }
       format.js {
         render :update do |page|
-          element_id = "#{Date::DAYNAMES[@reservation.begining_at.wday].downcase}_" +
-            "#{@reservation.begining_at.day}"
+          element_id = ReservationsController.create_element_id(@reservation.begining_at)
 
           reservations = ReservationsController.prepare_reservations_for_view(
               Reservation.find(
@@ -247,6 +229,7 @@ class ReservationsController < ApplicationController
     end
   end
 
+  protected
 
   # FIXME make this more complex and optimal
   def self.prepare_reservations_for_view(reservations_list)
@@ -263,5 +246,9 @@ class ReservationsController < ApplicationController
     end
 
     reservations
+  end
+
+  def self.create_element_id(time)
+    "#{Date::DAYNAMES[time.wday].downcase}_#{time.day}"
   end
 end
