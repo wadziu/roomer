@@ -15,7 +15,7 @@ class ReservationsController < ApplicationController
     @reservations = ReservationsController.prepare_reservations_for_view(reservations_list)
 
     respond_to do |format|
-      format.html
+      format.html 
       format.xml  { render :xml => @reservations }
     end
   end

@@ -1,4 +1,8 @@
 class RoomsController < ApplicationController
+
+  before_filter :login_required, :only => [ :create, :destroy, :edit, :update, :new ]
+  before_filter :must_be_owner, :only => [ :destroy, :edit, :update ] 
+
   # GET /rooms
   # GET /rooms.xml
   def index
